@@ -22,3 +22,8 @@ The initial CI workflow validates repository metadata and emits a run receipt. I
 ## Documentation
 
 [Host and edge contract](docs/host-and-edge-contract.md)
+
+
+## Bootstrap CI status
+
+The Ubuntu 24.04 workflow validates the repository baseline and emits a short-lived CI execution receipt. A passing hosted CI run proves only that repository validation executed; it does not prove that a persistent VPS, edge service, or registered worker is deployed.
