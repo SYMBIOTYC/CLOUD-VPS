@@ -18,3 +18,7 @@ Target persistent hosts: Ubuntu Server 24.04 LTS or Debian stable, x86-64 or ARM
 ## Baseline
 
 The initial CI workflow validates repository metadata and emits a run receipt. It is not evidence that a VPS exists or that a persistent worker is online.
+
+## Documentation
+
+[Host and edge contract](docs/host-and-edge-contract.md)
