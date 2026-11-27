@@ -1,0 +1,41 @@
+name: Bootstrap CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  repository-validation:
+    name: Repository validation (ephemeral GitHub-hosted runner)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Validate repository baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s README.md
+          printf 'repository=%s\n' "$GITHUB_REPOSITORY" > execution-receipt.txt
+          printf 'commit=%s\n' "$GITHUB_SHA" >> execution-receipt.txt
+          printf 'run_id=%s\n' "$GITHUB_RUN_ID" >> execution-receipt.txt
+          printf 'runner=github-hosted-ubuntu-24.04\n' >> execution-receipt.txt
+          printf 'execution_class=repository-ci-only\n' >> execution-receipt.txt
+          cat execution-receipt.txt
+      - name: Upload CI receipt
+        uses: actions/upload-artifact@v4
+        with:
+          name: bootstrap-receipt-${{ github.run_id }}
+          path: execution-receipt.txt
+          if-no-files-found: error
+          retention-days: 14
