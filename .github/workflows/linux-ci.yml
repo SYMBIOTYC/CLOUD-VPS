@@ -1,0 +1,84 @@
+name: Linux CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bootstrap:
+    name: Ubuntu 24.04 bootstrap check
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Validate repository baseline
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s README.md
+          head -n 1 README.md | grep -Eq '^# .+'
+
+      - name: Write execution receipt
+        shell: bash
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_RUN_ID: ${{ github.run_id }}
+          GITHUB_RUN_ATTEMPT: ${{ github.run_attempt }}
+          RUNNER_OS: ${{ runner.os }}
+        run: |
+          mkdir -p out
+          python3 - <<'PY'
+          import json
+          import os
+          from datetime import datetime, timezone
+          from pathlib import Path
+
+          receipt = {
+              "schema_version": "1.0.0",
+              "execution_id": f"{os.environ['GITHUB_RUN_ID']}.{os.environ['GITHUB_RUN_ATTEMPT']}",
+              "source": {
+                  "repository": os.environ["GITHUB_REPOSITORY"],
+                  "commit": os.environ["GITHUB_SHA"],
+                  "ref": os.environ["GITHUB_REF"],
+              },
+              "worker": {
+                  "class": "github-hosted",
+                  "image": "ubuntu-24.04",
+                  "os": os.environ["RUNNER_OS"],
+              },
+              "result": {
+                  "status": "bootstrap_passed",
+                  "scope": "repository README baseline only; no production worker was exercised",
+              },
+              "completed_at": datetime.now(timezone.utc).isoformat(),
+          }
+          Path("out/ci-receipt.json").write_text(
+              json.dumps(receipt, indent=2) + "\n", encoding="utf-8"
+          )
+          PY
+
+      - name: Upload execution receipt
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: linux-ci-receipt-${{ github.run_id }}-${{ github.run_attempt }}
+          path: out/ci-receipt.json
+          if-no-files-found: error
+          retention-days: 14
