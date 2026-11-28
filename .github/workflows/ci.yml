@@ -1,0 +1,62 @@
+name: vps-ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    name: Validate repository baseline
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+
+      - name: Validate required files and trust boundaries
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -s README.md
+          test -s docs/host-and-edge-contract.md
+          grep -q "GitHub-hosted" README.md
+          grep -Eiq "public pull.?request|pull.?request" README.md
+          if grep -RniE "runs-on: *\[?self-hosted|runs-on: *self-hosted" .github/workflows; then
+            echo "::error::Persistent/self-hosted runners are forbidden in this repository CI."
+            exit 1
+          fi
+          mkdir -p dist
+          cat > dist/ci-receipt.json <<'JSON'
+          {
+            "schema_version": "1.0",
+            "kind": "repository-ci",
+            "repository": "${{ github.repository }}",
+            "commit": "${{ github.sha }}",
+            "run_id": "${{ github.run_id }}",
+            "run_attempt": "${{ github.run_attempt }}",
+            "runner_class": "github-hosted-ubuntu-24.04",
+            "production_worker_evidence": false
+          }
+          JSON
+          echo "Repository baseline validated; no production worker is implied."
+
+      - name: Upload short-lived CI receipt
+        uses: actions/upload-artifact@0b7f8abb1508181956e8e162db84b466c27e18ce
+        with:
+          name: vps-ci-receipt
+          path: dist/ci-receipt.json
+          if-no-files-found: error
+          retention-days: 7
